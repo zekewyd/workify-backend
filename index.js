@@ -82,7 +82,7 @@ const sendEmail = (emailAddress, message) => {
 };
 
 app.get("/", (req, res) => {
-  res.send("Final assignment");
+  res.send("Workify Backend");
 });
 
 async function run() {
