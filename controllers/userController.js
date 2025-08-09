@@ -1,125 +1,149 @@
-const { collections } = require("../db");
-const { ObjectId } = require("mongodb");
+const bcrypt = require("bcryptjs");
+const User = require("../models/users");
 
-// POST /users/:email
-const createUser = async (req, res) => {
-  const email = req.params.email;
-  let userInfo = req.body;
+// admin only: create a user
+exports.createUser = async (req, res) => {
+  try {
+    const { name, email, password, role = "employee", isVerified = false } = req.body;
+    if (!name || !email || !password) return res.status(400).json({ message: "name, email, password required" });
 
-  const user = await collections.userCollection.findOne({ email });
-  if (user) return res.status(400).send({ message: "User already exists" });
+    const existing = await User.findOne({ email });
+    if (existing) return res.status(400).json({ message: "Email already exists" });
 
-  userInfo.isVerified = false;
-  userInfo.isFired = false;
+    const hashed = await bcrypt.hash(password, 10);
+    const user = await User.create({
+      name,
+      email,
+      password: hashed,
+      role,
+      isVerified,
+      isDisabled: false,
+      disabledAt: null,
+      disabledBy: null,
+    });
 
-  const result = await collections.userCollection.insertOne(userInfo);
-  res.send(result);
+    const out = user.toObject();
+    delete out.password;
+    res.status(201).json(out);
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
 };
 
-// GET /users/:email
-const getUserByEmail = async (req, res) => {
-  const email = req.params.email;
-  const result = await collections.userCollection.findOne({ email });
-  res.send(result);
+// admin only: get all users
+exports.getAllUsers = async (req, res) => {
+  try {
+    const users = await User.find().select("-password");
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
 };
 
-// GET /employees/role/:email
-const getLoggedInUserRole = async (req, res) => {
-  const email = req.params.email;
-  const result = await collections.userCollection.findOne({ email });
-  res.send(result);
+// admin or HR: get one user by id (HR cannot fetch admins)
+exports.getUserById = async (req, res) => {
+  try {
+    const target = await User.findById(req.params.id).select("-password");
+    if (!target) return res.status(404).json({ message: "User not found" });
+
+    if (req.user.role === "hr" && target.role === "admin") {
+      return res.status(403).json({ message: "Forbidden: HR cannot access admin data" });
+    }
+
+    res.json(target);
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
 };
 
-// GET /verified-employees
-const getVerifiedEmployees = async (req, res) => {
-  const query = {
-    isVerified: true,
-    role: { $ne: "admin" },
-  };
-  const result = await collections.userCollection.find(query).toArray();
-  res.send(result);
+// any authenticated user: get own profile
+exports.getMe = async (req, res) => {
+  try {
+    const me = await User.findById(req.user.id).select("-password");
+    if (!me) return res.status(404).json({ message: "User not found" });
+    res.json(me);
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
 };
 
-// PATCH /verified-employees/:email
-const makeEmployeeHR = async (req, res) => {
-  const email = req.params.email;
-  const filter = { email };
-  const updateDoc = { $set: { role: "hr" } };
+// Update user 
+exports.updateUser = async (req, res) => {
+  try {
+    const id = req.params.id;
+    const caller = req.user; // { id, role }
 
-  const result = await collections.userCollection.updateOne(filter, updateDoc);
-  res.send(result);
+    const target = await User.findById(id);
+    if (!target) return res.status(404).json({ message: "User not found" });
+
+    if (caller.role === "hr" && target.role === "admin") {
+      return res.status(403).json({ message: "HR cannot modify admin users" });
+    }
+    if (caller.role === "employee" && caller.id !== id) {
+      return res.status(403).json({ message: "Employees can only update their own profile" });
+    }
+
+    const updates = {};
+    if (req.body.name) updates.name = req.body.name;
+
+    if (req.body.password) {
+      if (caller.role === "employee" && caller.id !== id) {
+        return res.status(403).json({ message: "Not allowed to change password" });
+      }
+      if (caller.role === "hr" && caller.id !== id) {
+        return res.status(403).json({ message: "HR cannot change passwords" });
+      }
+      updates.password = await bcrypt.hash(req.body.password, 10);
+    }
+
+    if (typeof req.body.isVerified !== "undefined") {
+      if (caller.role === "admin") {
+        updates.isVerified = !!req.body.isVerified;
+      } else if (caller.role === "hr") {
+        if (target.role === "employee") updates.isVerified = !!req.body.isVerified;
+        else return res.status(403).json({ message: "HR can only verify employees" });
+      } else {
+        return res.status(403).json({ message: "Not allowed to change verification" });
+      }
+    }
+
+    if (typeof req.body.role !== "undefined") {
+      if (caller.role !== "admin") return res.status(403).json({ message: "Only admin can change roles" });
+      if (!["admin", "hr", "employee"].includes(req.body.role)) return res.status(400).json({ message: "Invalid role" });
+      updates.role = req.body.role;
+    }
+
+    const updated = await User.findByIdAndUpdate(id, updates, { new: true }).select("-password");
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
 };
 
-// PATCH /salary-adjustment/:email
-const adjustSalary = async (req, res) => {
-  const email = req.params.email;
-  const { increasingSalary } = req.body;
+// disable user
+exports.disableUser = async (req, res) => {
+  try {
+    const id = req.params.id;
+    const caller = req.user;
 
-  const filter = { email };
-  const updateDoc = { $set: { salary: increasingSalary } };
+    if (caller.id === id) {
+      return res.status(400).json({ message: "You cannot disable your own account" });
+    }
 
-  const result = await collections.userCollection.updateOne(filter, updateDoc);
-  res.send(result);
-};
+    const target = await User.findById(id);
+    if (!target) return res.status(404).json({ message: "User not found" });
 
-// GET /employees
-const getAllEmployees = async (req, res) => {
-  const result = await collections.userCollection
-    .find({ role: { $nin: ["admin"] } })
-    .toArray();
-  res.send(result);
-};
+    if (caller.role === "hr" && target.role !== "employee") {
+      return res.status(403).json({ message: "HR can only disable employees" });
+    }
 
-// PATCH /employeesVerified/:id
-const toggleEmployeeVerification = async (req, res) => {
-  const id = req.params.id;
-  const { isVerified } = req.body;
+    target.isDisabled = true;
+    target.disabledAt = new Date();
+    target.disabledBy = caller.id;
+    await target.save();
 
-  const filter = { _id: new ObjectId(id) };
-  const updateDoc = { $set: { isVerified } };
-
-  const result = await collections.userCollection.updateOne(filter, updateDoc);
-  res.send(result);
-};
-
-// GET /employeesDetails/:email
-const getEmployeeDetails = async (req, res) => {
-  const email = req.params.email;
-  const result = await collections.userCollection.findOne({ email });
-  res.send(result);
-};
-
-// Disable user (POST to firedUserCollection)
-const disableUser = async (req, res) => {
-  const employeeInfo = req.body;
-  const result = await collections.firedUserCollection.insertOne(employeeInfo);
-  res.send(result);
-};
-
-// Get all disabled users
-const getDisabledUsers = async (req, res) => {
-  const result = await collections.firedUserCollection.find().toArray();
-  res.send(result);
-};
-
-// Patch user as disabled in userCollection
-const markUserAsDisabled = async (req, res) => {
-  const email = req.params.email;
-  const filter = { email };
-  const updateDoc = { $set: { isFired: true } };
-
-  const result = await collections.userCollection.updateOne(filter, updateDoc);
-  res.send(result);
-};
-
-module.exports = {
-  createUser,
-  getUserByEmail,
-  getLoggedInUserRole,
-  getVerifiedEmployees,
-  makeEmployeeHR,
-  adjustSalary,
-  getAllEmployees,
-  toggleEmployeeVerification,
-  getEmployeeDetails
+    res.json({ message: "User disabled (soft-delete)", userId: id });
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
 };

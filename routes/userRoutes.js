@@ -1,47 +1,12 @@
 const express = require("express");
 const router = express.Router();
-const {
-  createUser,
-  getUserByEmail,
-  getLoggedInUserRole,
-  getVerifiedEmployees,
-  makeEmployeeHR,
-  adjustSalary,
-  getAllEmployees,
-  toggleEmployeeVerification,
-  getEmployeeDetails
-} = require("../controllers/userController");
+const { verifyToken} = require("../middlewares/auth");
+const { allowRoles } = require("../middlewares/roles");
+const { getAllUsers, getMe, updateUser, disableUser } = require("../controllers/userController");
 
-const { verifyToken, verifyAdmin, verifyHr } = require("../middleware/authMiddleware");
-
-// User CRUD
-router.post("/:email", createUser);
-router.get("/:email", getUserByEmail);
-
-// Logged in user role
-router.get("/role/:email", getLoggedInUserRole);
-
-// Verified employees
-router.get("/verified-employees", getVerifiedEmployees);
-router.patch("/verified-employees/:email", verifyToken, verifyAdmin, makeEmployeeHR);
-
-// Salary adjustment
-router.patch("/salary-adjustment/:email", verifyToken, verifyAdmin, adjustSalary);
-
-// Employees list & verification toggle
-router.get("/employees", getAllEmployees);
-router.patch("/employeesVerified/:id", verifyToken, verifyHr, toggleEmployeeVerification);
-
-// Employee details
-router.get("/employeesDetails/:email", getEmployeeDetails);
-
-// Disable user (Admin only)
-router.post("/disable", verifyToken, verifyAdmin, disableUser);
-
-// Get all disabled users
-router.get("/disabled", getDisabledUsers);
-
-// Mark an existing user as disabled
-router.patch("/disable/:email", verifyToken, verifyAdmin, markUserAsDisabled);
+router.get("/", verifyToken, allowRoles("admin"), getAllUsers);
+router.get("/me", verifyToken, getMe);
+router.put("/:id", verifyToken, updateUser);
+router.patch("/:id/disable", verifyToken, allowRoles("admin", "hr"), disableUser);
 
 module.exports = router;
