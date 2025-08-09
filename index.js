@@ -18,9 +18,9 @@ app.use("/users", require("./routes/userRoutes"));
 
 app.get("/", (req, res) => res.send("Workify Backend"));
 
-app.listen(port, () => console.log(`Server running on port ${port}`));
+app.listen(port, () => console.log(`Server running at http://localhost:${port}`));
 
-// INAAYOS KO PA HAHAHAHAHAH
+// STILL IN THE PROCESS OF REFACTORING
 
 // require("dotenv").config();
 // const express = require("express");
