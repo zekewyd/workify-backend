@@ -4,19 +4,39 @@ const User = require("../models/users");
 // admin only: create a user
 exports.createUser = async (req, res) => {
   try {
-    const { name, email, password, role = "employee", isVerified = false } = req.body;
-    if (!name || !email || !password) return res.status(400).json({ message: "name, email, password required" });
+    let { username, email, password, role = "employee", isDisabled = false } = req.body;
 
-    const existing = await User.findOne({ email });
-    if (existing) return res.status(400).json({ message: "Email already exists" });
+    if (!username || !email || !password) {
+      return res.status(400).json({ message: "username, email, password required" });
+    }
+
+    if (password.length > 21) {
+      return res.status(400).json({ message: "Password cannot exceed 21 characters" });
+    }
+
+    // username format check
+    const usernameRegex = /^[a-z0-9._@!#$%^&*()\-\+=|[\]\\:'",?/]+$/i;
+    if (!usernameRegex.test(username)) {
+      return res.status(400).json({ message: "Username contains invalid characters" });
+    }
+
+    // check if username or email exists (case-insensitive)
+    const existingUser = await User.findOne({ username: username.toLowerCase() });
+    if (existingUser) {
+      return res.status(400).json({ message: "Username already exists" });
+    }
+
+    const existingEmail = await User.findOne({ email: email.toLowerCase() });
+    if (existingEmail) {
+      return res.status(400).json({ message: "Email already exists" });
+    }
 
     const hashed = await bcrypt.hash(password, 10);
     const user = await User.create({
-      name,
-      email,
+      username: username.toLowerCase(),
+      email: email.toLowerCase(),
       password: hashed,
       role,
-      isVerified,
       isDisabled: false,
       disabledAt: null,
       disabledBy: null,
@@ -25,6 +45,7 @@ exports.createUser = async (req, res) => {
     const out = user.toObject();
     delete out.password;
     res.status(201).json(out);
+
   } catch (err) {
     res.status(500).json({ message: "Server error", error: err.message });
   }
@@ -81,22 +102,37 @@ exports.updateUser = async (req, res) => {
       return res.status(403).json({ message: "HR cannot modify admin users" });
     }
 
-    // Employee can only update their own profile
+    // employee can only update their own profile
     if (caller.role === "employee" && caller.id !== id) {
       return res.status(403).json({ message: "Employees can only update their own profile" });
     }
 
     const updates = {};
 
-    // name
-    if (req.body.name) updates.name = req.body.name;
+    // username
+    if (req.body.username) {
+      const usernameRegex = /^[a-z0-9._@!#$%^&*()\-\+=|[\]\\:'",?/]+$/i;
+      if (!usernameRegex.test(req.body.username)) {
+        return res.status(400).json({ message: "Username contains invalid characters" });
+      }
 
-    // Email
+      const existingUser = await User.findOne({ username: req.body.username.toLowerCase(), _id: { $ne: id } });
+      if (existingUser) {
+        return res.status(400).json({ message: "Username already exists" });
+      }
+
+      updates.username = req.body.username.toLowerCase();
+    }
+
+    // email
     if (req.body.email) {
-      if (caller.id === id) {
-        updates.email = req.body.email; // always allow self-update
-      } else if (caller.role === "admin" || caller.role === "hr") {
-        updates.email = req.body.email; // admin/hr can change others' email if allowed
+      const existingEmail = await User.findOne({ email: req.body.email.toLowerCase(), _id: { $ne: id } });
+      if (existingEmail) {
+        return res.status(400).json({ message: "Email already exists" });
+      }
+
+      if (caller.id === id || caller.role === "admin" || (caller.role === "hr" && target.role === "employee")) {
+        updates.email = req.body.email.toLowerCase();
       } else {
         return res.status(403).json({ message: "Not allowed to change email" });
       }
@@ -104,28 +140,14 @@ exports.updateUser = async (req, res) => {
 
     // password
     if (req.body.password) {
-      if (caller.id === id) {
-        updates.password = await bcrypt.hash(req.body.password, 10); // self-update allowed
-      } else if (caller.role === "admin") {
-        updates.password = await bcrypt.hash(req.body.password, 10); // admin can change any password
-      } else if (caller.role === "hr" && target.role === "employee") {
-        updates.password = await bcrypt.hash(req.body.password, 10); // hr can change employee password
+      if (req.body.password.length > 21) {
+        return res.status(400).json({ message: "Password cannot exceed 21 characters" });
+      }
+
+      if (caller.id === id || caller.role === "admin" || (caller.role === "hr" && target.role === "employee")) {
+        updates.password = await bcrypt.hash(req.body.password, 10);
       } else {
         return res.status(403).json({ message: "Not allowed to change password" });
-      }
-    }
-
-    // isVerified
-    if (typeof req.body.isVerified !== "undefined") {
-      if (caller.role === "admin") {
-        updates.isVerified = !!req.body.isVerified;
-      } else if (caller.role === "hr" && target.role === "employee") {
-        updates.isVerified = !!req.body.isVerified;
-      } else if (caller.id === id) {
-        // self cannot verify themselves (security)
-        return res.status(403).json({ message: "Cannot change your own verification status" });
-      } else {
-        return res.status(403).json({ message: "Not allowed to change verification" });
       }
     }
 
@@ -151,6 +173,7 @@ exports.updateUser = async (req, res) => {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
+
 
 // disable user
 exports.disableUser = async (req, res) => {

@@ -8,7 +8,7 @@ const connectDB = async () => {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
-    console.log("MongoDB connected");
+    console.log(`MongoDB connected to database: ${mongoose.connection.name}`);
 
     // create default admin only if missing
     const adminEmail = "admin@example.com";
@@ -17,7 +17,7 @@ const connectDB = async () => {
     if (!existingAdmin) {
       const hashedPassword = await bcrypt.hash("admin123", 10);
       await User.create({
-        name: "System Admin",
+        username: "admin",
         email: adminEmail,
         password: hashedPassword,
         role: "admin",
