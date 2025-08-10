@@ -30,27 +30,27 @@ exports.createUser = async (req, res) => {
   }
 };
 
-// admin only: get all users
+// admin or HR: get allowed user list
 exports.getAllUsers = async (req, res) => {
   try {
-    const users = await User.find().select("-password");
-    res.json(users);
-  } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
-  }
-};
+    let users;
 
-// admin or HR: get one user by id (HR cannot fetch admins)
-exports.getUserById = async (req, res) => {
-  try {
-    const target = await User.findById(req.params.id).select("-password");
-    if (!target) return res.status(404).json({ message: "User not found" });
-
-    if (req.user.role === "hr" && target.role === "admin") {
-      return res.status(403).json({ message: "Forbidden: HR cannot access admin data" });
+    if (req.user.role === "admin") {
+      // admin gets all users
+      users = await User.find().select("-password");
+    } 
+    else if (req.user.role === "hr") {
+      // HR gets employees only, excluding themselves
+      users = await User.find({
+        role: "employee",
+        _id: { $ne: req.user.id }
+      }).select("-password");
+    } 
+    else {
+      return res.status(403).json({ message: "Forbidden: Only admin or HR can access this list" });
     }
 
-    res.json(target);
+    res.json(users);
   } catch (err) {
     res.status(500).json({ message: "Server error", error: err.message });
   }
@@ -67,7 +67,7 @@ exports.getMe = async (req, res) => {
   }
 };
 
-// Update user 
+// update user
 exports.updateUser = async (req, res) => {
   try {
     const id = req.params.id;
@@ -76,45 +76,77 @@ exports.updateUser = async (req, res) => {
     const target = await User.findById(id);
     if (!target) return res.status(404).json({ message: "User not found" });
 
-    if (caller.role === "hr" && target.role === "admin") {
+    // HR cannot update Admin accounts (except their own profile)
+    if (caller.role === "hr" && target.role === "admin" && caller.id !== id) {
       return res.status(403).json({ message: "HR cannot modify admin users" });
     }
+
+    // Employee can only update their own profile
     if (caller.role === "employee" && caller.id !== id) {
       return res.status(403).json({ message: "Employees can only update their own profile" });
     }
 
     const updates = {};
+
+    // name
     if (req.body.name) updates.name = req.body.name;
 
-    if (req.body.password) {
-      if (caller.role === "employee" && caller.id !== id) {
-        return res.status(403).json({ message: "Not allowed to change password" });
+    // Email
+    if (req.body.email) {
+      if (caller.id === id) {
+        updates.email = req.body.email; // always allow self-update
+      } else if (caller.role === "admin" || caller.role === "hr") {
+        updates.email = req.body.email; // admin/hr can change others' email if allowed
+      } else {
+        return res.status(403).json({ message: "Not allowed to change email" });
       }
-      if (caller.role === "hr" && caller.id !== id) {
-        return res.status(403).json({ message: "HR cannot change passwords" });
-      }
-      updates.password = await bcrypt.hash(req.body.password, 10);
     }
 
+    // password
+    if (req.body.password) {
+      if (caller.id === id) {
+        updates.password = await bcrypt.hash(req.body.password, 10); // self-update allowed
+      } else if (caller.role === "admin") {
+        updates.password = await bcrypt.hash(req.body.password, 10); // admin can change any password
+      } else if (caller.role === "hr" && target.role === "employee") {
+        updates.password = await bcrypt.hash(req.body.password, 10); // hr can change employee password
+      } else {
+        return res.status(403).json({ message: "Not allowed to change password" });
+      }
+    }
+
+    // isVerified
     if (typeof req.body.isVerified !== "undefined") {
       if (caller.role === "admin") {
         updates.isVerified = !!req.body.isVerified;
-      } else if (caller.role === "hr") {
-        if (target.role === "employee") updates.isVerified = !!req.body.isVerified;
-        else return res.status(403).json({ message: "HR can only verify employees" });
+      } else if (caller.role === "hr" && target.role === "employee") {
+        updates.isVerified = !!req.body.isVerified;
+      } else if (caller.id === id) {
+        // self cannot verify themselves (security)
+        return res.status(403).json({ message: "Cannot change your own verification status" });
       } else {
         return res.status(403).json({ message: "Not allowed to change verification" });
       }
     }
 
+    // role change
     if (typeof req.body.role !== "undefined") {
       if (caller.role !== "admin") return res.status(403).json({ message: "Only admin can change roles" });
       if (!["admin", "hr", "employee"].includes(req.body.role)) return res.status(400).json({ message: "Invalid role" });
       updates.role = req.body.role;
     }
 
+    // isDisabled
+    if (typeof req.body.isDisabled !== "undefined") {
+      if (caller.role !== "admin") return res.status(403).json({ message: "Only admin can disable/enable users" });
+      updates.isDisabled = !!req.body.isDisabled;
+      updates.disabledAt = updates.isDisabled ? new Date() : null;
+      updates.disabledBy = updates.isDisabled ? caller.id : null;
+    }
+
     const updated = await User.findByIdAndUpdate(id, updates, { new: true }).select("-password");
     res.json(updated);
+
   } catch (err) {
     res.status(500).json({ message: "Server error", error: err.message });
   }
