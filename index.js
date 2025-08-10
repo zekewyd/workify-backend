@@ -15,6 +15,13 @@ app.use(cookieParser());
 
 app.use("/auth", require("./routes/authRoutes"));
 app.use("/users", require("./routes/userRoutes"));
+app.use("/department", require("./routes/deptRoutes"));
+app.use("/tasks", require("./routes/taskRoutes"));
+app.use("/progress", require("./routes/progressRoutes"));
+app.use("/payments", require("./routes/paymentRoutes"));
+app.use("/user-department", require("./routes/userDeptRoutes"));
+
+
 
 app.get("/", (req, res) => res.send("Workify Backend"));
 

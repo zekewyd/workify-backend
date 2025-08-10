@@ -14,6 +14,7 @@ const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true, index: true,lowercase: true, trim: true},
   password: { type: String, required: true, minlength: 7},
   role: { type: String, enum: ["admin", "hr", "employee"],  default: "employee" },
+  department: { type: mongoose.Schema.Types.ObjectId, ref: "Department", default: null },
 
   // disable users
   isDisabled: { type: Boolean, default: false },
@@ -23,6 +24,17 @@ const userSchema = new mongoose.Schema({
 }, { timestamps: true }); // add timestamps for createdAt and updatedAt
 
 // make username uniqueness truly case-insensitive at the MongoDB level
+
 userSchema.index({ username: 1 }, { unique: true });
+// auto-populate department details on find queries
+function autoPopulateDepartment(next) {
+  this.populate("department", "departmentName jobTitle");
+  next();
+}
+
+userSchema
+  .pre("find", autoPopulateDepartment)
+  .pre("findOne", autoPopulateDepartment)
+  .pre("findById", autoPopulateDepartment);
 
 module.exports = mongoose.model("Users", userSchema);
