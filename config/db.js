@@ -4,10 +4,7 @@ const User = require("../models/users");
 
 const connectDB = async () => {
   try {
-    await mongoose.connect(process.env.URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    await mongoose.connect(process.env.URI);
     console.log(`MongoDB connected to database: ${mongoose.connection.name}`);
 
     // create default admin only if missing

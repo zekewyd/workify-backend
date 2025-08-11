@@ -25,7 +25,7 @@ const userSchema = new mongoose.Schema({
 
 // make username uniqueness truly case-insensitive at the MongoDB level
 
-userSchema.index({ username: 1 }, { unique: true });
+// userSchema.index({ username: 1 }, { unique: true });
 // auto-populate department details on find queries
 function autoPopulateDepartment(next) {
   this.populate("department", "departmentName jobTitle");

@@ -9,7 +9,7 @@ router.post("/create", (req, res, next) => {
 }, verifyToken, allowRoles("admin"), deptController.createDepartment);
 
 router.get("/", verifyToken, deptController.getDepartments);
-router.put("/:id", verifyToken, allowRoles(["admin"]), deptController.updateDepartment);
+router.put("/:id", verifyToken, allowRoles("admin"), deptController.updateDepartment);
 router.delete("/:id", verifyToken, allowRoles("admin"), deptController.deleteDepartment);
 
 module.exports = router;
