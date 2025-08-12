@@ -3,8 +3,8 @@ const mongoose = require("mongoose");
 const taskProgressSchema = new mongoose.Schema({
   taskID: { type: mongoose.Schema.Types.ObjectId, ref: "Task", required: true },
   userID: { type: mongoose.Schema.Types.ObjectId, ref: "Users", required: true },
-  hoursWorked: { type: Number, required: true },
-  progressStatus: { type: String, enum: ["in progress", "for approval", "completed"], default: "in progress" },
+  hoursWorked: { type: Number, default: null },
+  progressStatus: { type: String, enum: ["in progress", "pending", "completed"], default: "in progress" },
   completionDate: { type: Date, default: null }
 }, { timestamps: true });
 

@@ -3,15 +3,33 @@ const Task = require("../models/task");
 
 exports.logProgress = async (req, res) => {
   try {
-    const progress = await TaskProgress.create({
-      ...req.body,
-      userID: req.user._id
+    const { hoursWorked, completionDate } = req.body;
+    if (hoursWorked == null || !completionDate) {
+      return res.status(400).json({ message: "hoursWorked and completionDate are required" });
+    }
+
+    const progress = await TaskProgress.findOne({ 
+      taskID: req.body.taskID, 
+      userID: req.user._id 
     });
-    res.status(201).json(progress);
+    if (!progress) return res.status(404).json({ message: "Progress record not found" });
+
+    // employee can only edit these two fields
+    progress.hoursWorked = hoursWorked;
+    progress.completionDate = new Date(completionDate);
+    progress.progressStatus = "pending";
+
+    await progress.save();
+
+    // update task status to pending
+    await Task.findByIdAndUpdate(progress.taskID, { status: "pending" });
+
+    res.json(progress);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 };
+
 
 exports.getProgress = async (req, res) => {
   try {

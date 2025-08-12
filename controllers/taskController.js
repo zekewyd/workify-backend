@@ -1,6 +1,7 @@
 const Task = require("../models/task");
 const Users = require("../models/users"); 
 const Department = require("../models/department"); 
+const TaskProgress = require("../models/taskProgress");
 
 function parseDueDate(input) {
   if (!input) return null;
@@ -59,7 +60,16 @@ exports.createTask = async (req, res) => {
       assignedBy: req.user._id, // fetch user details 
       department,
       dueDate: parsedDue,
-      status: "pending"
+      status: "in progress" // default status
+    });
+
+    // create matching progress record
+    await TaskProgress.create({
+      taskID: task._id,
+      userID: assignedTo,
+      hoursWorked: null,
+      completionDate: null,
+      progressStatus: "in progress"
     });
 
     // populate for response
@@ -110,6 +120,14 @@ exports.updateTask = async (req, res) => {
     if (taskName) task.taskName = taskName;
     if (description) task.description = description;
     if (status) task.status = status;
+
+    // update task progress if status changed to completed
+    if (status && status === "completed") {
+      await TaskProgress.findOneAndUpdate(
+        { taskID: task._id },
+        { progressStatus: "completed" }
+      );
+    }
 
     // if assignedTo changes, auto-update department
     if (assignedTo && assignedTo.toString() !== task.assignedTo.toString()) {
