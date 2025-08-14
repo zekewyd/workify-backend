@@ -88,10 +88,33 @@ exports.getAllEmpInfo = async (req, res) => {
       return res.status(403).json({ message: "Unauthorized" });
     }
 
-    const infos = await PersonalInfo.find()
-      .populate("userID", "email role")
-      .exec();
-    res.json(infos);
+    // get personal info + user + department
+    const personals = await PersonalInfo.find()
+      .populate({
+        path: "userID",
+        select: "email role department",
+        populate: { path: "department", select: "departmentName jobTitle" }
+      })
+      .lean();
+
+    // pull parents & emergency for all pInfoIDs in one go
+    const pInfoIDs = personals.map(p => p._id);
+    const [parentsList, emergencyList] = await Promise.all([
+      ParentsInfo.find({ pInfoID: { $in: pInfoIDs } }).lean(),
+      EmergencyInfo.find({ pInfoID: { $in: pInfoIDs } }).lean()
+    ]);
+
+    const parentsByP = Object.fromEntries(parentsList.map(x => [String(x.pInfoID), x]));
+    const emergencyByP = Object.fromEntries(emergencyList.map(x => [String(x.pInfoID), x]));
+
+    // attach related docs per personal
+    const result = personals.map(p => ({
+      ...p,
+      parents: parentsByP[String(p._id)] || null,
+      emergency: emergencyByP[String(p._id)] || null
+    }));
+
+    res.json(result);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
