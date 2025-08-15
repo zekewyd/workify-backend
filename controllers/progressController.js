@@ -1,6 +1,8 @@
 const TaskProgress = require("../models/taskProgress");
 const Task = require("../models/task");
+const PersonalInfo = require("../models/personalInfo");
 
+// log progress
 exports.logProgress = async (req, res) => {
   try {
     const { hoursWorked, completionDate } = req.body;
@@ -30,7 +32,7 @@ exports.logProgress = async (req, res) => {
   }
 };
 
-
+// get progress logs
 exports.getProgress = async (req, res) => {
   try {
     let progressLogs;
