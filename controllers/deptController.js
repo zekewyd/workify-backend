@@ -1,14 +1,26 @@
 const Department = require("../models/department");
 
+// create a new department
 exports.createDepartment = async (req, res) => {
   try {
-    const department = await Department.create(req.body);
+    const { departmentName, jobTitles } = req.body;
+
+    if (!departmentName || !Array.isArray(jobTitles) || jobTitles.length === 0) {
+      return res.status(400).json({ message: "Department name and job titles are required" });
+    }
+
+    const department = await Department.create({
+      departmentName,
+      jobTitles
+    });
+
     res.status(201).json(department);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 };
 
+// get all departments
 exports.getDepartments = async (req, res) => {
   try {
     const departments = await Department.find();
@@ -18,6 +30,7 @@ exports.getDepartments = async (req, res) => {
   }
 };
 
+// update a department
 exports.updateDepartment = async (req, res) => {
   try {
     const department = await Department.findByIdAndUpdate(req.params.id, req.body, { new: true });
@@ -28,6 +41,7 @@ exports.updateDepartment = async (req, res) => {
   }
 };
 
+// delete a department
 exports.deleteDepartment = async (req, res) => {
   try {
     const department = await Department.findByIdAndDelete(req.params.id);

@@ -15,6 +15,7 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true, minlength: 7},
   role: { type: String, enum: ["admin", "hr", "employee"],  default: "employee" },
   department: { type: mongoose.Schema.Types.ObjectId, ref: "Department", default: null },
+  jobTitle: { type: String, default: "" },
 
   // disable users
   isDisabled: { type: Boolean, default: false },

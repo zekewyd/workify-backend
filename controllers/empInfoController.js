@@ -92,8 +92,8 @@ exports.getAllEmpInfo = async (req, res) => {
     const personals = await PersonalInfo.find()
       .populate({
         path: "userID",
-        select: "email role department",
-        populate: { path: "department", select: "departmentName jobTitle" }
+        select: "email role department jobTitle",
+        populate: { path: "department", select: "departmentName jobTitles" }
       })
       .lean();
 
