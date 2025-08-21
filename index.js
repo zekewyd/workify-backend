@@ -21,6 +21,7 @@ app.use("/progress", require("./routes/progressRoutes"));
 app.use("/payments", require("./routes/paymentRoutes"));
 app.use("/user-department", require("./routes/userDeptRoutes"));
 app.use("/emp-info", require("./routes/empInfoRoutes"));
+app.use("/attendance", require("./routes/attendanceRoutes"));
 
 
 
