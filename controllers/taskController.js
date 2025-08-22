@@ -160,14 +160,18 @@ exports.updateTask = async (req, res) => {
   }
 };
 
-// delete Task (Admin/HR only)
+// delete task (admin/HR only)
 exports.deleteTask = async (req, res) => {
   try {
     const task = await Task.findByIdAndDelete(req.params.id);
     if (!task) return res.status(404).json({ message: "Task not found" });
 
-    res.json({ message: "Task deleted" });
+    // delete all related progress logs for this task
+    await TaskProgress.deleteMany({ taskID: task._id });
+
+    res.json({ message: "Task and related progress logs deleted" });
   } catch (err) {
+    console.error("deleteTask error:", err);
     res.status(500).json({ message: err.message });
   }
 };
