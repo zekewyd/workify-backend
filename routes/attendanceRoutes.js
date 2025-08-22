@@ -8,5 +8,6 @@ const { verifyToken } = require("../middlewares/auth");
 router.post("/clock-in", verifyToken, upload.single("photo"), attendanceController.clockIn);
 router.post("/clock-out", verifyToken, upload.single("photo"), attendanceController.clockOut);
 router.get("/me", verifyToken, attendanceController.myAttendance);
+router.get("/today", verifyToken, attendanceController.todayAttendance);
 
 module.exports = router;

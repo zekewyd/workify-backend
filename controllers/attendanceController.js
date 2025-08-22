@@ -141,3 +141,35 @@ exports.myAttendance = async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
+exports.todayAttendance = async (req, res) => {
+  try {
+    const userId = req.user?._id || req.query.userId; // fallback
+    if (!userId) {
+      return res.status(400).json({ message: "User ID required" });
+    }
+
+    const { startUtc, endUtc } = manilaStartEndOfDay(new Date());
+
+    const attendance = await Attendance.findOne({
+      userId,
+      clockInAt: { $gte: startUtc, $lte: endUtc }
+    }).sort({ clockInAt: -1 });
+
+    if (!attendance) {
+      return res.json(null);
+    }
+
+    res.json({
+      id: attendance._id,
+      clockInAt: attendance.clockInAt,
+      clockOutAt: attendance.clockOutAt,
+      status: attendance.status,
+      photoUrl: fullUrl(req, attendance.clockInPhoto || attendance.clockOutPhoto)
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
