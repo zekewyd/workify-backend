@@ -10,10 +10,15 @@ exports.logProgress = async (req, res) => {
       return res.status(400).json({ message: "hoursWorked and completionDate are required" });
     }
 
+    console.log("req.user._id:", req.user._id);
+    console.log("taskID from body:", req.body.taskID);
     const progress = await TaskProgress.findOne({ 
       taskID: req.body.taskID, 
       userID: req.user._id 
     });
+
+    console.log("Found progress:", progress);
+    
     if (!progress) return res.status(404).json({ message: "Progress record not found" });
 
     // employee can only edit these two fields
