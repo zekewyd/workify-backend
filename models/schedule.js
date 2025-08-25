@@ -14,7 +14,7 @@ const scheduleSchema = new mongoose.Schema({
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "Users" },
 
   // store employees assigned to this schedule 
-  employees: [{ type: mongoose.Schema.Types.ObjectId, ref: "Users" }]
+  employees: [{ type: mongoose.Schema.Types.ObjectId, ref: "PersonalInfo" }]
 }, { timestamps: true });
 
 module.exports = mongoose.model("Schedules", scheduleSchema);
