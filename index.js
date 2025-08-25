@@ -23,6 +23,7 @@ app.use("/user-department", require("./routes/userDeptRoutes"));
 app.use("/emp-info", require("./routes/empInfoRoutes"));
 app.use("/attendance", require("./routes/attendanceRoutes"));
 app.use("/schedule", require("./routes/scheduleRoutes"));
+app.use("/attendance-logs", require("./routes/attendanceLogRoutes"));
 
 
 
