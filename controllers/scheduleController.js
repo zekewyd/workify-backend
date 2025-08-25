@@ -126,3 +126,98 @@ exports.getSchedules = async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 };
+
+// update schedule
+exports.updateSchedule = async (req, res) => {
+  try {
+    const { id } = req.params; // schedule id
+    const {
+      scheduleName,
+      scheduleDescription,
+      startDate,
+      endDate,
+      scheduleType,
+      workDays,
+      workStart,
+      workEnd,
+      latenessGrace,
+      absenceGrace,
+      selectedEmployees
+    } = req.body;
+
+    // validate employee IDs against PersonalInfo
+    const employees = await PersonalInfo.find({
+      _id: { $in: selectedEmployees }
+    }).select("_id");
+
+    if (employees.length !== selectedEmployees.length) {
+      return res.status(400).json({
+        error: "One or more selected employees are invalid"
+      });
+    }
+
+    // find and update
+    const updated = await Schedule.findByIdAndUpdate(
+      id,
+      {
+        scheduleName,
+        scheduleDescription,
+        startDate,
+        endDate,
+        scheduleType,
+        workDays,
+        workStart,
+        workEnd,
+        latenessGrace,
+        absenceGrace,
+        employees: employees.map(e => e._id)
+      },
+      { new: true } // return updated document
+    ).populate({
+      path: "employees",
+      select: "employeeNo firstName lastName userID",
+      populate: {
+        path: "userID",
+        select: "email jobTitle department",
+        populate: { path: "department", select: "departmentName" }
+      }
+    });
+
+    if (!updated) {
+      return res.status(404).json({ error: "Schedule not found" });
+    }
+
+    // transform
+    const formattedSchedule = {
+      _id: updated._id,
+      scheduleName: updated.scheduleName,
+      scheduleDescription: updated.scheduleDescription,
+      startDate: updated.startDate,
+      endDate: updated.endDate,
+      scheduleType: updated.scheduleType,
+      workDays: updated.workDays,
+      workStart: updated.workStart,
+      workEnd: updated.workEnd,
+      latenessGrace: updated.latenessGrace,
+      absenceGrace: updated.absenceGrace,
+      createdBy: updated.createdBy,
+      employees: updated.employees.map(emp => ({
+        _id: emp._id,
+        employeeNo: emp.employeeNo,
+        firstName: emp.firstName,
+        lastName: emp.lastName,
+        email: emp.userID?.email || "",
+        jobTitle: emp.userID?.jobTitle || "",
+        department: emp.userID?.department?.departmentName || ""
+      }))
+    };
+
+    res.json({
+      message: "Schedule updated successfully",
+      schedule: formattedSchedule
+    });
+  } catch (err) {
+    console.error("Error updating schedule:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
