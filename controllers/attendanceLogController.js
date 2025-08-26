@@ -63,13 +63,14 @@ exports.addLog = async (req, res) => {
 // update attendance log (admin/hr)
 exports.updateLog = async (req, res) => {
   try {
-    const { clockIn, clockOut, status } = req.body;
+    const { clockIn, clockOut, status, date} = req.body;
     const log = await AttendanceLog.findById(req.params.id);
     if (!log) return res.status(404).json({ message: "Attendance log not found" });
 
     if (clockIn !== undefined) log.clockIn = clockIn;
     if (clockOut !== undefined) log.clockOut = clockOut;
     if (status !== undefined) log.status = status;
+    if (date !== undefined) log.date = date;
 
     // recalculate hours
     const { totalHrs, overtime } = calculateHours(log.clockIn, log.clockOut);
