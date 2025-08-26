@@ -24,6 +24,7 @@ app.use("/emp-info", require("./routes/empInfoRoutes"));
 app.use("/attendance", require("./routes/attendanceRoutes"));
 app.use("/schedule", require("./routes/scheduleRoutes"));
 app.use("/attendance-logs", require("./routes/attendanceLogRoutes"));
+app.use("/inquiries", require("./routes/inquiryRoutes"));
 
 
 
