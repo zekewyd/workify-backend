@@ -1,5 +1,6 @@
 const Task = require("../models/task");
 const Users = require("../models/users"); 
+const PersonalInfo = require("../models/personalInfo");
 const Department = require("../models/department"); 
 const TaskProgress = require("../models/taskProgress");
 
@@ -93,14 +94,33 @@ exports.getTasks = async (req, res) => {
     let query = {};
 
     if (req.user.role === "employee") {
-      // employees can only see their own tasks
       query.assignedTo = req.user._id;
     }
 
     const tasks = await Task.find(query)
-      .populate("assignedTo", "username email")
+      .populate("assignedTo", "username email department")
       .populate("assignedBy", "username role")
-      .populate("department", "departmentName jobTitle");
+      .populate("department", "departmentName jobTitle")
+      .lean(); 
+
+    // fetch personal info for each user
+    const userIds = tasks.map(t => t.assignedTo?._id).filter(Boolean);
+    const personalInfos = await PersonalInfo.find({ userID: { $in: userIds } }).select("userID firstName middleName lastName").lean();
+
+    // map userID to full name
+    const userIdToName = {};
+    personalInfos.forEach(info => {
+      userIdToName[info.userID.toString()] = `${info.firstName} ${info.middleName ? info.middleName + " " : ""}${info.lastName}`.trim();
+    });
+
+    // display full name
+    tasks.forEach(task => {
+      if (task.assignedTo && userIdToName[task.assignedTo._id.toString()]) {
+        task.assignedTo.fullName = userIdToName[task.assignedTo._id.toString()];
+      } else {
+        task.assignedTo.fullName = task.assignedTo?.username || "";
+      }
+    });
 
     res.json(tasks);
   } catch (err) {
