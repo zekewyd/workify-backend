@@ -105,18 +105,21 @@ exports.getTasks = async (req, res) => {
 
     // fetch personal info for each user
     const userIds = tasks.map(t => t.assignedTo?._id).filter(Boolean);
-    const personalInfos = await PersonalInfo.find({ userID: { $in: userIds } }).select("userID firstName middleName lastName").lean();
+    const personalInfos = await PersonalInfo.find({ userID: { $in: userIds } })
+      .select("userID firstName lastName")
+      .lean();
 
     // map userID to full name
-    const userIdToName = {};
+    const userIdToFullName = {};
     personalInfos.forEach(info => {
-      userIdToName[info.userID.toString()] = `${info.firstName} ${info.middleName ? info.middleName + " " : ""}${info.lastName}`.trim();
+      userIdToFullName[info.userID.toString()] = `${info.firstName} ${info.lastName}`.trim();
     });
 
     // display full name
     tasks.forEach(task => {
-      if (task.assignedTo && userIdToName[task.assignedTo._id.toString()]) {
-        task.assignedTo.fullName = userIdToName[task.assignedTo._id.toString()];
+      const uid = task.assignedTo?._id?.toString();
+      if (task.assignedTo && userIdToFullName[uid]) {
+        task.assignedTo.fullName = userIdToFullName[uid];
       } else {
         task.assignedTo.fullName = task.assignedTo?.username || "";
       }

@@ -42,10 +42,42 @@ exports.getProgress = async (req, res) => {
   try {
     let progressLogs;
     if (req.user.role === "employee") {
-      progressLogs = await TaskProgress.find({ userID: req.user._id }).populate("taskID userID");
+      progressLogs = await TaskProgress.find({ userID: req.user._id }).populate("taskID userID").lean();
     } else {
-      progressLogs = await TaskProgress.find().populate("taskID userID");
+      progressLogs = await TaskProgress.find().populate("taskID userID").lean();
     }
+
+    // get all emp
+    const userIds = progressLogs.map(log => log.userID?._id).filter(Boolean);
+
+    // fetch personal info for those users
+    const personalInfos = await PersonalInfo.find({ userID: { $in: userIds } })
+      .select("userID firstName lastName")
+      .lean();
+
+    // map userID to full name
+    const userIdToName = {};
+    personalInfos.forEach(info => {
+      userIdToName[info.userID.toString()] = `${info.firstName} ${info.lastName}`.trim();
+    });
+
+    // display full name
+    progressLogs.forEach(log => {
+      if (log.userID && userIdToName[log.userID._id.toString()]) {
+        log.userID.firstName = personalInfos.find(
+          info => info.userID.toString() === log.userID._id.toString()
+        )?.firstName || '';
+        log.userID.lastName = personalInfos.find(
+          info => info.userID.toString() === log.userID._id.toString()
+        )?.lastName || '';
+        log.userID.fullName = userIdToName[log.userID._id.toString()];
+      } else {
+        log.userID.firstName = "";
+        log.userID.lastName = "";
+        log.userID.fullName = log.userID?.username || "";
+      }
+    });
+
     res.json(progressLogs);
   } catch (err) {
     res.status(500).json({ message: err.message });
