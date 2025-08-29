@@ -166,6 +166,7 @@ exports.getMyInfo = async (req, res) => {
   }
 };
 
+// update personal info
 exports.updatePersonalInfo = async (req, res) => {
   try {
     if (!requireAdminOrHR(req.user)) {
@@ -192,6 +193,8 @@ exports.updatePersonalInfo = async (req, res) => {
       if (!d) return res.status(400).json({ message: "Invalid birthDate format" });
       payload.birthDate = d;
     }
+    console.log("Payload before save:", payload);
+    console.log("Personal Info document before save:", personal);
 
     Object.assign(personal, payload);
     await personal.save();
@@ -199,10 +202,12 @@ exports.updatePersonalInfo = async (req, res) => {
     await personal.populate({ path: "userID", select: "email role username" });
     res.json(personal);
   } catch (err) {
+    console.error("Update Personal Info Error:", err);
     res.status(400).json({ message: err.message });
   }
 };
 
+// update parents info
 exports.updateParentsInfo = async (req, res) => {
   try {
     if (!requireAdminOrHR(req.user)) {
@@ -213,7 +218,7 @@ exports.updateParentsInfo = async (req, res) => {
     const personal = await PersonalInfo.findById(pInfoID);
     if (!personal) return res.status(404).json({ message: "Personal info not found" });
 
-    const parents = await ParentsInfo.findOne({ pInfoID });
+    const parents = await ParentsInfo.findOne({ pInfoID }); 
     if (!parents) return res.status(404).json({ message: "Parents info not found" });
 
     const allowed = [
@@ -223,15 +228,17 @@ exports.updateParentsInfo = async (req, res) => {
     const payload = {};
     for (const k of allowed) if (k in req.body) payload[k] = req.body[k];
 
-    Object.assign(parents, payload);
+    Object.assign(parents, payload); 
     await parents.save();
 
     res.json(parents);
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    console.log("Update ParentsInfo error:", err);
+    res.status(400).json({ message: err.message || 'Unknown error' });
   }
 };
 
+// update emergency info
 exports.updateEmergencyInfo = async (req, res) => {
   try {
     if (!requireAdminOrHR(req.user)) {
