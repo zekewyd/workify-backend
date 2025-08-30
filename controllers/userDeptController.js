@@ -33,10 +33,13 @@ exports.assignDepartment = async (req, res) => {
   }
 };
 
-// get all users with their departments
+// get all emp with their departments
 exports.getUserDepartments = async (req, res) => {
   try {
-    const users = await Users.find().populate("department");
+    const users = await Users.find({ 
+      role: "employee", 
+      department: { $ne: null } 
+    }).populate("department");
     res.json(users);
   } catch (err) {
     res.status(500).json({ message: err.message });
